@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ClickUp Task Updater</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100">
+  <div class="max-w-3xl mx-auto p-6 bg-white rounded-lg shadow-md my-10">
+    <h1 class="text-2xl font-bold mb-6">ClickUp Bulk Task Status Updater</h1>
+    
+    <div class="mb-6 p-4 bg-blue-50 rounded-md">
+      <h2 class="text-lg font-semibold mb-2">Instructions</h2>
+      <ol class="list-decimal ml-5 space-y-1">
+        <li>Enter your ClickUp API key (found in App Settings → API Token)</li>
+        <li>Enter the List ID to fetch available statuses (optional)</li>
+        <li>Enter task IDs (one per line or comma-separated)</li>
+        <li>Select or enter the new status</li>
+        <li>Click "Update Tasks" to process</li>
+      </ol>
+    </div>
+
+    <form id="updateForm" class="space-y-4">
+      <div>
+        <label class="block mb-1 font-medium">
+          ClickUp API Key:
+          <input
+            type="password"
+            id="apiKey"
+            class="w-full p-2 mt-1 border rounded"
+            placeholder="pk_12345678_ABCDEFGHIJKLMNOPQRST..."
+            required
+          />
+        </label>
+      </div>
+
+      <div class="flex gap-4">
+        <div class="flex-1">
+          <label class="block mb-1 font-medium">
+            List ID (to fetch statuses):
+            <input
+              type="text"
+              id="listId"
+              class="w-full p-2 mt-1 border rounded"
+              placeholder="123456789"
+            />
+          </label>
+        </div>
+        <div class="flex items-end">
+          <button
+            type="button"
+            id="fetchStatusesBtn"
+            class="p-2 bg-gray-200 hover:bg-gray-300 rounded"
+          >
+            Fetch Statuses
+          </button>
+        </div>
+      </div>
+
+      <div>
+        <label class="block mb-1 font-medium">
+          Task IDs (one per line or comma-separated):
+          <textarea
+            id="taskIds"
+            class="w-full p-2 mt-1 border rounded h-24"
+            placeholder="123456789
+987654321
+456789123"
+            required
+          ></textarea>
+        </label>
+      </div>
+
+      <div id="statusContainer">
+        <label class="block mb-1 font-medium">
+          New Status:
+          <input
+            type="text"
+            id="customStatus"
+            class="w-full p-2 mt-1 border rounded"
+            placeholder="e.g., 'in progress', 'completed', etc."
+            required
+          />
+        </label>
+      </div>
+
+      <div id="errorMsg" class="p-3 bg-red-100 text-red-700 rounded-md hidden"></div>
+
+      <button
+        type="submit"
+        id="submitBtn"
+        class="w-full p-3 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+      >
+        Update Tasks
+      </button>
+    </form>
+
+    <div id="resultsContainer" class="mt-6 hidden">
+      <h2 class="text-lg font-semibold mb-2">Results:</h2>
+      <div class="border rounded-md overflow-hidden">
+        <table class="min-w-full">
+          <thead class="bg-gray-100">
+            <tr>
+              <th class="py-2 px-3 text-left">Task ID</th>
+              <th class="py-2 px-3 text-left">Status</th>
+              <th class="py-2 px-3 text-left">Message</th>
+            </tr>
+          </thead>
+          <tbody id="resultsTable" class="divide-y"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const form = document.getElementById('updateForm');
+      const apiKeyInput = document.getElementById('apiKey');
+      const listIdInput = document.getElementById('listId');
+      const taskIdsInput = document.getElementById('taskIds');
+      const customStatusInput = document.getElementById('customStatus');
+      const statusContainer = document.getElementById('statusContainer');
+      const fetchStatusesBtn = document.getElementById('fetchStatusesBtn');
+      const submitBtn = document.getElementById('submitBtn');
+      const errorMsg = document.getElementById('errorMsg');
+      const resultsContainer = document.getElementById('resultsContainer');
+      const resultsTable = document.getElementById('resultsTable');
+
+      // Fetch statuses
+      fetchStatusesBtn.addEventListener('click', async function() {
+        const apiKey = apiKeyInput.value.trim();
+        const listId = listIdInput.value.trim();
+        
+        if (!apiKey || !listId) {
+          showError('API Key and List ID are required to fetch statuses');
+          return;
+        }
+        
+        try {
+          fetchStatusesBtn.textContent = 'Loading...';
+          fetchStatusesBtn.disabled = true;
+          
+          const response = await fetch(`/api/clickup?listId=${listId}`, {
+            method: 'GET',
+            headers: {
+              'Authorization': apiKey,
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.error || `Error ${response.status}`);
+          }
+          
+          const data = await response.json();
+          
+          if (data && data.statuses && data.statuses.length > 0) {
+            // Replace the custom status input with a select dropdown
+            const select = document.createElement('select');
+            select.id = 'statusSelect';
+            select.className = 'w-full p-2 mt-1 border rounded';
+            select.required = true;
+            
+            const defaultOption = document.createElement('option');
+            defaultOption.value = '';
+            defaultOption.textContent = 'Select a status';
+            select.appendChild(defaultOption);
+            
+            data.statuses.forEach(status => {
+              const option = document.createElement('option');
+              option.value = status.status;
+              option.textContent = status.status;
+              select.appendChild(option);
+            });
+            
+            const label = document.createElement('label');
+            label.className = 'block mb-1 font-medium';
+            label.textContent = 'New Status:';
+            label.appendChild(select);
+            
+            statusContainer.innerHTML = '';
+            statusContainer.appendChild(label);
+          } else {
+            showError('No statuses found for this list');
+          }
+        } catch (error) {
+          showError(`Failed to fetch statuses: ${error.message}`);
+        } finally {
+          fetchStatusesBtn.textContent = 'Fetch Statuses';
+          fetchStatusesBtn.disabled = false;
+        }
+      });
+
+      // Submit form to update tasks
+      form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const apiKey = apiKeyInput.value.trim();
+        const taskIdsText = taskIdsInput.value.trim();
+        
+        // Get status from either select or input
+        let status;
+        const statusSelect = document.getElementById('statusSelect');
+        if (statusSelect) {
+          status = statusSelect.value;
+        } else {
+          status = customStatusInput.value.trim();
+        }
+        
+        if (!apiKey) {
+          showError('API Key is required');
+          return;
+        }
+        
+        if (!taskIdsText) {
+          showError('At least one Task ID is required');
+          return;
+        }
+        
+        if (!status) {
+          showError('Please select or enter a status');
+          return;
+        }
+        
+        // Parse task IDs
+        const taskIds = taskIdsText.split(/[\n,]+/).map(id => id.trim()).filter(id => id);
+        
+        try {
+          submitBtn.textContent = 'Updating Tasks...';
+          submitBtn.disabled = true;
+          hideError();
+          
+          const response = await fetch('/api/clickup', {
+            method: 'POST',
+            headers: {
+              'Authorization': apiKey,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              taskIds,
+              status
+            })
+          });
+          
+          if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.error || `Error ${response.status}`);
+          }
+          
+          const data = await response.json();
+          
+          // Display results
+          resultsTable.innerHTML = '';
+          data.results.forEach(result => {
+            const row = document.createElement('tr');
+            row.className = result.success ? 'bg-green-50' : 'bg-red-50';
+            
+            const idCell = document.createElement('td');
+            idCell.className = 'py-2 px-3';
+            idCell.textContent = result.taskId;
+            
+            const statusCell = document.createElement('td');
+            statusCell.className = 'py-2 px-3';
+            const statusBadge = document.createElement('span');
+            statusBadge.className = result.success 
+              ? 'inline-block px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs'
+              : 'inline-block px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs';
+            statusBadge.textContent = result.success ? 'Success' : 'Failed';
+            statusCell.appendChild(statusBadge);
+            
+            const messageCell = document.createElement('td');
+            messageCell.className = 'py-2 px-3';
+            messageCell.textContent = result.message;
+            
+            row.appendChild(idCell);
+            row.appendChild(statusCell);
+            row.appendChild(messageCell);
+            
+            resultsTable.appendChild(row);
+          });
+          
+          resultsContainer.classList.remove('hidden');
+        } catch (error) {
+          showError(`Failed to update tasks: ${error.message}`);
+        } finally {
+          submitBtn.textContent = 'Update Tasks';
+          submitBtn.disabled = false;
+        }
+      });
+
+      // Helper functions
+      function showError(message) {
+        errorMsg.textContent = message;
+        errorMsg.classList.remove('hidden');
+      }
+      
+      function hideError() {
+        errorMsg.textContent = '';
+        errorMsg.classList.add('hidden');
+      }
+    });
+  </script>
+</body>
+</html>

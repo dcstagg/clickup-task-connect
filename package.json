@@ -1,0 +1,16 @@
+{
+  "name": "clickup-task-connect",
+  "version": "1.0.0",
+  "description": "A basic application to handle ClickUp Tasks via API",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel deploy --prod"
+  },
+  "dependencies": {
+    "axios": "^1.6.2"
+  },
+  "devDependencies": {
+    "vercel": "^30.2.2"
+  }
+}
