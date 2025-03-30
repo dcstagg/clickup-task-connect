@@ -5,11 +5,8 @@
     { "src": "api/*.js", "use": "@vercel/node" }
   ],
   "routes": [
-    { 
-      "src": "/api/clickup", 
-      "dest": "/api/clickup.js",
-      "methods": ["GET", "POST", "OPTIONS"]
-    },
+    { "src": "/api/getList", "dest": "/api/getList.js" },
+    { "src": "/api/updateTasks", "dest": "/api/updateTasks.js" },
     { "src": "/(.*)", "dest": "/index.html" }
   ]
 }

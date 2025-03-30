@@ -144,7 +144,7 @@
           fetchStatusesBtn.textContent = 'Loading...';
           fetchStatusesBtn.disabled = true;
           
-          const response = await fetch(`/api/clickup?listId=${encodeURIComponent(listId)}`, {
+          const response = await fetch(`/api/getList?listId=${encodeURIComponent(listId)}`, {
             method: 'GET',
             headers: {
               'Authorization': apiKey,
@@ -241,7 +241,7 @@
             showError(`Processing ${taskCount} tasks. This may take a moment...`, 'bg-blue-100 text-blue-700');
           }
           
-          const response = await fetch('/api/clickup', {
+          const response = await fetch('/api/updateTasks', {
             method: 'POST',
             headers: {
               'Authorization': apiKey,
