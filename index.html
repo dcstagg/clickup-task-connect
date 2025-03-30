@@ -259,6 +259,18 @@
             showError(`Processing ${taskCount} tasks. This may take a moment...`, 'bg-blue-100 text-blue-700');
           }
           
+          // Define headers for API call
+          const headers = {
+            'Content-Type': 'application/json'
+          };
+          
+          // Format API key correctly
+          if (apiKey.trim().toLowerCase().startsWith('pk_')) {
+            headers['Authorization'] = apiKey.trim();
+          } else {
+            headers['Authorization'] = 'Bearer ' + apiKey.trim();
+          }
+          
           const response = await fetch('/api/updateTasks', {
             method: 'POST',
             headers: headers,
