@@ -144,17 +144,35 @@
           fetchStatusesBtn.textContent = 'Loading...';
           fetchStatusesBtn.disabled = true;
           
+          // Log what we're doing
+          console.log('Fetching statuses for list:', listId);
+          
+          let headers = {
+            'Content-Type': 'application/json'
+          };
+          
+          // Format API key correctly (API expects just the key, not 'Bearer' prefix)
+          if (apiKey.trim().toLowerCase().startsWith('pk_')) {
+            headers['Authorization'] = apiKey.trim();
+          } else {
+            headers['Authorization'] = 'Bearer ' + apiKey.trim();
+          }
+          
           const response = await fetch(`/api/getList?listId=${encodeURIComponent(listId)}`, {
             method: 'GET',
-            headers: {
-              'Authorization': apiKey,
-              'Content-Type': 'application/json'
-            }
+            headers: headers
           });
           
           if (!response.ok) {
-            const data = await response.json();
-            throw new Error(data.error || `Error ${response.status}`);
+            const data = await response.text();
+            try {
+              // Try to parse as JSON
+              const jsonData = JSON.parse(data);
+              throw new Error(jsonData.error || jsonData.message || `Error ${response.status}`);
+            } catch (e) {
+              // If parsing fails, use the raw text
+              throw new Error(`Error ${response.status}: ${data.substring(0, 100)}...`);
+            }
           }
           
           const data = await response.json();
@@ -243,10 +261,7 @@
           
           const response = await fetch('/api/updateTasks', {
             method: 'POST',
-            headers: {
-              'Authorization': apiKey,
-              'Content-Type': 'application/json'
-            },
+            headers: headers,
             body: JSON.stringify({
               taskIds,
               status
@@ -254,8 +269,15 @@
           });
           
           if (!response.ok) {
-            const data = await response.json();
-            throw new Error(data.error || `Error ${response.status}`);
+            const data = await response.text();
+            try {
+              // Try to parse as JSON
+              const jsonData = JSON.parse(data);
+              throw new Error(jsonData.error || jsonData.message || `Error ${response.status}`);
+            } catch (e) {
+              // If parsing fails, use the raw text
+              throw new Error(`Server error (${response.status}): ${data.substring(0, 100)}...`);
+            }
           }
           
           const data = await response.json();
