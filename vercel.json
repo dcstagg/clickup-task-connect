@@ -7,6 +7,7 @@
   "routes": [
     { "src": "/api/getList", "dest": "/api/getList.js" },
     { "src": "/api/updateTasks", "dest": "/api/updateTasks.js" },
+    { "src": "/api/clickup", "status": 404, "dest": "/api/getList.js" },
     { "src": "/(.*)", "dest": "/index.html" }
   ]
 }
