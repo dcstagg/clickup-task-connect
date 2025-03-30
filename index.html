@@ -141,7 +141,7 @@
           fetchStatusesBtn.textContent = 'Loading...';
           fetchStatusesBtn.disabled = true;
           
-          const response = await fetch(`/api/clickup?listId=${listId}`, {
+          const response = await fetch(`/api/clickup?listId=${encodeURIComponent(listId)}`, {
             method: 'GET',
             headers: {
               'Authorization': apiKey,

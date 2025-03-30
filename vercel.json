@@ -5,7 +5,11 @@
     { "src": "api/*.js", "use": "@vercel/node" }
   ],
   "routes": [
-    { "src": "/api/(.*)", "dest": "/api/$1" },
+    { 
+      "src": "/api/clickup", 
+      "dest": "/api/clickup.js",
+      "methods": ["GET", "POST", "OPTIONS"]
+    },
     { "src": "/(.*)", "dest": "/index.html" }
   ]
 }

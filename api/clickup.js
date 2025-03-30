@@ -98,6 +98,8 @@ const updateTasks = async (req, res) => {
 
 // Main handler
 module.exports = async (req, res) => {
+  console.log('API request received:', req.method, req.url);
+  
   // Set CORS headers
   Object.entries(corsHeaders).forEach(([key, value]) => {
     res.setHeader(key, value);
@@ -108,12 +110,17 @@ module.exports = async (req, res) => {
     return handleOptions(req, res);
   }
   
-  // Route based on request path and method
-  if (req.method === 'GET') {
-    return getList(req, res);
-  } else if (req.method === 'POST') {
-    return updateTasks(req, res);
-  } else {
-    return res.status(405).json({ error: 'Method not allowed' });
+  // Route based on request method
+  try {
+    if (req.method === 'GET') {
+      return await getList(req, res);
+    } else if (req.method === 'POST') {
+      return await updateTasks(req, res);
+    } else {
+      return res.status(405).json({ error: 'Method not allowed' });
+    }
+  } catch (error) {
+    console.error('Unhandled error:', error);
+    return res.status(500).json({ error: 'Internal server error: ' + error.message });
   }
 };
