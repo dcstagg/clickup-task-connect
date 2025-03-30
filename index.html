@@ -271,32 +271,51 @@
             headers['Authorization'] = 'Bearer ' + apiKey.trim();
           }
           
-          const response = await fetch('/api/updateTasks', {
-            method: 'POST',
-            headers: headers,
-            body: JSON.stringify({
-              taskIds,
-              status
-            })
-          });
+          // Process tasks one by one to avoid timeouts
+          const MAX_CONCURRENT = 3; // Maximum concurrent requests
+          const results = [];
+          let processed = 0;
           
-          if (!response.ok) {
-            const data = await response.text();
-            try {
-              // Try to parse as JSON
-              const jsonData = JSON.parse(data);
-              throw new Error(jsonData.error || jsonData.message || `Error ${response.status}`);
-            } catch (e) {
-              // If parsing fails, use the raw text
-              throw new Error(`Server error (${response.status}): ${data.substring(0, 100)}...`);
+          // Update progress message
+          showError(`Processing ${taskCount} tasks. Progress: 0/${taskCount}...`, 'bg-blue-100 text-blue-700');
+          
+          // Process in small batches
+          for (let i = 0; i < taskIds.length; i += MAX_CONCURRENT) {
+            const batch = taskIds.slice(i, i + MAX_CONCURRENT);
+            const batchPromises = batch.map(taskId => 
+              fetch('/api/processTask', {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify({ taskId, status })
+              })
+              .then(response => {
+                if (!response.ok) {
+                  throw new Error(`HTTP error ${response.status}`);
+                }
+                return response.json();
+              })
+              .then(data => {
+                processed++;
+                showError(`Processing ${taskCount} tasks. Progress: ${processed}/${taskCount}...`, 'bg-blue-100 text-blue-700');
+                return data;
+              })
+            );
+            
+            // Wait for current batch to complete
+            const batchResults = await Promise.all(batchPromises);
+            results.push(...batchResults);
+            
+            // Add a small delay between batches
+            if (i + MAX_CONCURRENT < taskIds.length) {
+              await new Promise(resolve => setTimeout(resolve, 300));
             }
           }
           
-          const data = await response.json();
+          // Remove the old code for checking response and parsing data
           
-          // Display results
+          // Display results (we already have them in the results array)
           resultsTable.innerHTML = '';
-          data.results.forEach(result => {
+          results.forEach(result => {
             const row = document.createElement('tr');
             row.className = result.success ? 'bg-green-50' : 'bg-red-50';
             
