@@ -38,7 +38,7 @@ module.exports = async (req, res) => {
   const cleanApiKey = apiKey.replace(/^Bearer\s+/i, '');
   
   const results = [];
-  const BATCH_SIZE = 3; // Process in smaller batches to avoid timeouts
+  const BATCH_SIZE = 2; // Reduced batch size to avoid timeouts
   
   try {
     // Process tasks in batches
@@ -55,7 +55,7 @@ module.exports = async (req, res) => {
               'Authorization': cleanApiKey,
               'Content-Type': 'application/json'
             },
-            timeout: 10000 // Increased timeout to 10 seconds
+            timeout: 8000 // 8 second timeout per request
           });
           
           // Extract relevant data
@@ -74,6 +74,14 @@ module.exports = async (req, res) => {
           };
         } catch (error) {
           console.error(`Error fetching task ${taskId}:`, error.message);
+          
+          if (error.code === 'ECONNABORTED') {
+            return { 
+              taskId, 
+              success: false, 
+              message: 'Request timed out. Please try again with fewer tasks.' 
+            };
+          }
           
           if (error.response) {
             return { 
@@ -97,7 +105,7 @@ module.exports = async (req, res) => {
       
       // Add a small delay between batches to avoid rate limiting
       if (i + BATCH_SIZE < taskIds.length) {
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Increased delay
       }
     }
     
@@ -108,7 +116,7 @@ module.exports = async (req, res) => {
     if (error.code === 'ECONNABORTED') {
       return res.status(504).json({ 
         error: 'Request timeout', 
-        message: 'The request to ClickUp API timed out. Please try again.' 
+        message: 'The request to ClickUp API timed out. Please try again with fewer tasks.' 
       });
     }
     
@@ -119,7 +127,6 @@ module.exports = async (req, res) => {
       });
     }
     
-    // Ensure we always return a JSON response
     return res.status(500).json({ 
       error: 'Failed to process request', 
       message: error.message || 'An unknown error occurred'
