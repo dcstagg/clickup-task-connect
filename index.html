@@ -509,7 +509,8 @@
           });
           
           if (!response.ok) {
-            throw new Error(`HTTP error ${response.status}`);
+            const errorData = await response.json();
+            throw new Error(errorData.message || `HTTP error ${response.status}`);
           }
           
           const data = await response.json();
@@ -602,7 +603,11 @@
           
           viewResultsContainer.classList.remove('hidden');
         } catch (error) {
-          showError(`Failed to fetch task status: ${error.message}`);
+          if (error.message.includes('timeout')) {
+            showError('The request timed out. Please try again with fewer tasks or wait a moment before retrying.');
+          } else {
+            showError(`Failed to fetch task status: ${error.message}`);
+          }
         } finally {
           viewBtn.textContent = 'Get Task Status';
           viewBtn.disabled = false;

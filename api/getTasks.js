@@ -55,7 +55,7 @@ module.exports = async (req, res) => {
               'Authorization': cleanApiKey,
               'Content-Type': 'application/json'
             },
-            timeout: 5000 // 5 second timeout per request
+            timeout: 10000 // Increased timeout to 10 seconds
           });
           
           // Extract relevant data
@@ -104,6 +104,20 @@ module.exports = async (req, res) => {
     return res.status(200).json({ results });
   } catch (error) {
     console.error('Unhandled error in getTasks:', error.message);
+    
+    if (error.code === 'ECONNABORTED') {
+      return res.status(504).json({ 
+        error: 'Request timeout', 
+        message: 'The request to ClickUp API timed out. Please try again.' 
+      });
+    }
+    
+    if (error.response) {
+      return res.status(error.response.status).json({ 
+        error: 'ClickUp API error', 
+        message: error.response.data?.err || error.message 
+      });
+    }
     
     return res.status(500).json({ 
       error: 'Failed to process request', 
