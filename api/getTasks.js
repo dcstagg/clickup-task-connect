@@ -59,17 +59,20 @@ module.exports = async (req, res) => {
           });
           
           // Extract relevant data
-          const { id, name, status, url, parent } = response.data;
+          const { id, name, status, url, list } = response.data;
           
           return { 
             taskId: id, 
             name, 
             status: {
-              status,
-              color: response.data.status?.color || null
+              status: status?.status || 'Unknown',
+              color: status?.color || null
             },
             url,
-            list: parent ? { id: parent.id, name: parent.name } : null,
+            list: list ? { 
+              id: list.id, 
+              name: list.name 
+            } : null,
             success: true 
           };
         } catch (error) {

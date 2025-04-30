@@ -576,7 +576,7 @@
             // List column
             const listCell = document.createElement('td');
             listCell.className = 'py-2 px-3';
-            if (task.success && task.list) {
+            if (task.success && task.list && task.list.id) {
               const listLink = document.createElement('a');
               listLink.href = `https://app.clickup.com/l/${task.list.id}`;
               listLink.target = '_blank';
