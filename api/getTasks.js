@@ -119,9 +119,10 @@ module.exports = async (req, res) => {
       });
     }
     
+    // Ensure we always return a JSON response
     return res.status(500).json({ 
       error: 'Failed to process request', 
-      message: error.message 
+      message: error.message || 'An unknown error occurred'
     });
   }
 };

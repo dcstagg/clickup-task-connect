@@ -509,8 +509,16 @@
           });
           
           if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.message || `HTTP error ${response.status}`);
+            let errorMessage;
+            try {
+              const errorData = await response.json();
+              errorMessage = errorData.message || `HTTP error ${response.status}`;
+            } catch (e) {
+              // If response is not JSON, try to get the text
+              const text = await response.text();
+              errorMessage = `Server error: ${text.substring(0, 100)}...`;
+            }
+            throw new Error(errorMessage);
           }
           
           const data = await response.json();
