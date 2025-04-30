@@ -3,29 +3,36 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ClickUp Task Updater</title>
+  <title>ClickUp Task Manager</title>
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
 <body class="bg-gray-100">
   <div class="max-w-3xl mx-auto p-6 bg-white rounded-lg shadow-md my-10">
-    <h1 class="text-2xl font-bold mb-6">ClickUp Bulk Task Status Updater</h1>
+    <h1 class="text-2xl font-bold mb-6">ClickUp Task Manager</h1>
     
-      <div class="mb-6 p-4 bg-blue-50 rounded-md">
-        <h2 class="text-lg font-semibold mb-2">Instructions</h2>
-        <ol class="list-decimal ml-5 space-y-1">
-          <li>Enter your ClickUp API key (found in App Settings → API Token)</li>
-          <li>Enter the List ID to fetch available statuses (optional)</li>
-          <li>Enter task IDs (one per line or comma-separated)</li>
-          <li>Select or enter the new status</li>
-          <li>Click "Update Tasks" to process</li>
-        </ol>
-        <p class="mt-2 text-sm text-blue-800">
-          <strong>Note:</strong> For best results with large batches, enter no more than 50 task IDs at once.
-        </p>
-      </div>
-
-    <form id="updateForm" class="space-y-4">
-      <div>
+    <!-- Tabs Navigation -->
+    <div class="border-b border-gray-200 mb-6">
+      <ul class="flex flex-wrap -mb-px text-sm font-medium text-center" id="tabNavigation">
+        <li class="mr-2">
+          <a href="#" class="inline-block p-4 border-b-2 border-blue-600 rounded-t-lg active" 
+             id="update-tab" data-tab="update-content">
+            Update Tasks
+          </a>
+        </li>
+        <li class="mr-2">
+          <a href="#" class="inline-block p-4 border-b-2 border-transparent rounded-t-lg hover:text-gray-600 hover:border-gray-300" 
+             id="view-tab" data-tab="view-content">
+            View Task Status
+          </a>
+        </li>
+      </ul>
+    </div>
+    
+    <!-- Common Sections -->
+    <div class="mb-6 p-4 bg-blue-50 rounded-md">
+      <h2 class="text-lg font-semibold mb-2">API Key Required</h2>
+      <p>Enter your ClickUp API key (found in App Settings → API Token)</p>
+      <div class="mt-2">
         <label class="block mb-1 font-medium">
           ClickUp API Key:
           <input
@@ -37,100 +44,205 @@
           />
         </label>
       </div>
+    </div>
 
-      <div class="flex gap-4">
-        <div class="flex-1">
+    <!-- Error message container -->
+    <div id="errorMsg" class="p-3 bg-red-100 text-red-700 rounded-md mb-4 hidden"></div>
+    
+    <!-- Update Tasks Tab Content -->
+    <div id="update-content" class="tab-content">
+      <div class="mb-6 p-4 bg-blue-50 rounded-md">
+        <h2 class="text-lg font-semibold mb-2">Update Tasks Instructions</h2>
+        <ol class="list-decimal ml-5 space-y-1">
+          <li>Enter the List ID to fetch available statuses (optional)</li>
+          <li>Enter task IDs (one per line or comma-separated)</li>
+          <li>Select or enter the new status</li>
+          <li>Click "Update Tasks" to process</li>
+        </ol>
+        <p class="mt-2 text-sm text-blue-800">
+          <strong>Note:</strong> For best results with large batches, enter no more than 50 task IDs at once.
+        </p>
+      </div>
+      
+      <form id="updateForm" class="space-y-4">
+        <div class="flex gap-4">
+          <div class="flex-1">
+            <label class="block mb-1 font-medium">
+              List ID (to fetch statuses):
+              <input
+                type="text"
+                id="listId"
+                class="w-full p-2 mt-1 border rounded"
+                placeholder="123456789"
+              />
+            </label>
+          </div>
+          <div class="flex items-end">
+            <button
+              type="button"
+              id="fetchStatusesBtn"
+              class="p-2 bg-gray-200 hover:bg-gray-300 rounded"
+            >
+              Fetch Statuses
+            </button>
+          </div>
+        </div>
+
+        <div>
           <label class="block mb-1 font-medium">
-            List ID (to fetch statuses):
+            Task IDs (one per line or comma-separated):
+            <textarea
+              id="taskIds"
+              class="w-full p-2 mt-1 border rounded h-24"
+              placeholder="123456789
+987654321
+456789123"
+              required
+            ></textarea>
+          </label>
+        </div>
+
+        <div id="statusContainer">
+          <label class="block mb-1 font-medium">
+            New Status:
             <input
               type="text"
-              id="listId"
+              id="customStatus"
               class="w-full p-2 mt-1 border rounded"
-              placeholder="123456789"
+              placeholder="e.g., 'in progress', 'completed', etc."
+              required
             />
           </label>
         </div>
-        <div class="flex items-end">
-          <button
-            type="button"
-            id="fetchStatusesBtn"
-            class="p-2 bg-gray-200 hover:bg-gray-300 rounded"
-          >
-            Fetch Statuses
-          </button>
+
+        <button
+          type="submit"
+          id="submitBtn"
+          class="w-full p-3 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+        >
+          Update Tasks
+        </button>
+      </form>
+
+      <div id="updateResultsContainer" class="mt-6 hidden">
+        <h2 class="text-lg font-semibold mb-2">Update Results:</h2>
+        <div class="border rounded-md overflow-hidden">
+          <table class="min-w-full">
+            <thead class="bg-gray-100">
+              <tr>
+                <th class="py-2 px-3 text-left">Task ID</th>
+                <th class="py-2 px-3 text-left">Status</th>
+                <th class="py-2 px-3 text-left">Message</th>
+              </tr>
+            </thead>
+            <tbody id="updateResultsTable" class="divide-y"></tbody>
+          </table>
         </div>
       </div>
-
-      <div>
-        <label class="block mb-1 font-medium">
-          Task IDs (one per line or comma-separated):
-          <textarea
-            id="taskIds"
-            class="w-full p-2 mt-1 border rounded h-24"
-            placeholder="123456789
+    </div>
+    
+    <!-- View Task Status Tab Content -->
+    <div id="view-content" class="tab-content hidden">
+      <div class="mb-6 p-4 bg-blue-50 rounded-md">
+        <h2 class="text-lg font-semibold mb-2">View Task Status Instructions</h2>
+        <ol class="list-decimal ml-5 space-y-1">
+          <li>Enter task IDs (one per line or comma-separated)</li>
+          <li>Click "Get Task Status" to retrieve current status information</li>
+        </ol>
+      </div>
+      
+      <form id="viewForm" class="space-y-4">
+        <div>
+          <label class="block mb-1 font-medium">
+            Task IDs (one per line or comma-separated):
+            <textarea
+              id="viewTaskIds"
+              class="w-full p-2 mt-1 border rounded h-24"
+              placeholder="123456789
 987654321
 456789123"
-            required
-          ></textarea>
-        </label>
-      </div>
+              required
+            ></textarea>
+          </label>
+        </div>
 
-      <div id="statusContainer">
-        <label class="block mb-1 font-medium">
-          New Status:
-          <input
-            type="text"
-            id="customStatus"
-            class="w-full p-2 mt-1 border rounded"
-            placeholder="e.g., 'in progress', 'completed', etc."
-            required
-          />
-        </label>
-      </div>
+        <button
+          type="submit"
+          id="viewBtn"
+          class="w-full p-3 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+        >
+          Get Task Status
+        </button>
+      </form>
 
-      <div id="errorMsg" class="p-3 bg-red-100 text-red-700 rounded-md hidden"></div>
-
-      <button
-        type="submit"
-        id="submitBtn"
-        class="w-full p-3 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-      >
-        Update Tasks
-      </button>
-    </form>
-
-    <div id="resultsContainer" class="mt-6 hidden">
-      <h2 class="text-lg font-semibold mb-2">Results:</h2>
-      <div class="border rounded-md overflow-hidden">
-        <table class="min-w-full">
-          <thead class="bg-gray-100">
-            <tr>
-              <th class="py-2 px-3 text-left">Task ID</th>
-              <th class="py-2 px-3 text-left">Status</th>
-              <th class="py-2 px-3 text-left">Message</th>
-            </tr>
-          </thead>
-          <tbody id="resultsTable" class="divide-y"></tbody>
-        </table>
+      <div id="viewResultsContainer" class="mt-6 hidden">
+        <h2 class="text-lg font-semibold mb-2">Task Status Results:</h2>
+        <div class="border rounded-md overflow-hidden">
+          <table class="min-w-full">
+            <thead class="bg-gray-100">
+              <tr>
+                <th class="py-2 px-3 text-left">Task ID</th>
+                <th class="py-2 px-3 text-left">Task Name</th>
+                <th class="py-2 px-3 text-left">Current Status</th>
+                <th class="py-2 px-3 text-left">List</th>
+                <th class="py-2 px-3 text-left">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="viewResultsTable" class="divide-y"></tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
 
   <script>
     document.addEventListener('DOMContentLoaded', function() {
-      const form = document.getElementById('updateForm');
+      // Tab navigation
+      const tabs = document.querySelectorAll('[data-tab]');
+      tabs.forEach(tab => {
+        tab.addEventListener('click', function(e) {
+          e.preventDefault();
+          
+          // Update active tab
+          tabs.forEach(t => {
+            t.classList.remove('active', 'border-blue-600');
+            t.classList.add('border-transparent');
+          });
+          this.classList.add('active', 'border-blue-600');
+          this.classList.remove('border-transparent');
+          
+          // Show active content
+          const tabContents = document.querySelectorAll('.tab-content');
+          tabContents.forEach(content => {
+            content.classList.add('hidden');
+          });
+          document.getElementById(this.getAttribute('data-tab')).classList.remove('hidden');
+        });
+      });
+      
+      // Common elements
       const apiKeyInput = document.getElementById('apiKey');
+      const errorMsg = document.getElementById('errorMsg');
+      
+      // Update Tasks elements
+      const updateForm = document.getElementById('updateForm');
       const listIdInput = document.getElementById('listId');
       const taskIdsInput = document.getElementById('taskIds');
       const customStatusInput = document.getElementById('customStatus');
       const statusContainer = document.getElementById('statusContainer');
       const fetchStatusesBtn = document.getElementById('fetchStatusesBtn');
       const submitBtn = document.getElementById('submitBtn');
-      const errorMsg = document.getElementById('errorMsg');
-      const resultsContainer = document.getElementById('resultsContainer');
-      const resultsTable = document.getElementById('resultsTable');
+      const updateResultsContainer = document.getElementById('updateResultsContainer');
+      const updateResultsTable = document.getElementById('updateResultsTable');
+      
+      // View Task Status elements
+      const viewForm = document.getElementById('viewForm');
+      const viewTaskIdsInput = document.getElementById('viewTaskIds');
+      const viewBtn = document.getElementById('viewBtn');
+      const viewResultsContainer = document.getElementById('viewResultsContainer');
+      const viewResultsTable = document.getElementById('viewResultsTable');
 
-      // Fetch statuses
+      // Fetch statuses for update tab
       fetchStatusesBtn.addEventListener('click', async function() {
         const apiKey = apiKeyInput.value.trim();
         const listId = listIdInput.value.trim();
@@ -215,7 +327,7 @@
       });
 
       // Submit form to update tasks
-      form.addEventListener('submit', async function(e) {
+      updateForm.addEventListener('submit', async function(e) {
         e.preventDefault();
         
         const apiKey = apiKeyInput.value.trim();
@@ -314,10 +426,8 @@
           // Show completion message
           showError(`All tasks have been updated successfully!`, 'bg-green-100 text-green-700');
           
-          // Remove the old code for checking response and parsing data
-          
-          // Display results (we already have them in the results array)
-          resultsTable.innerHTML = '';
+          // Display results
+          updateResultsTable.innerHTML = '';
           results.forEach(result => {
             const row = document.createElement('tr');
             row.className = result.success ? 'bg-green-50' : 'bg-red-50';
@@ -343,15 +453,159 @@
             row.appendChild(statusCell);
             row.appendChild(messageCell);
             
-            resultsTable.appendChild(row);
+            updateResultsTable.appendChild(row);
           });
           
-          resultsContainer.classList.remove('hidden');
+          updateResultsContainer.classList.remove('hidden');
         } catch (error) {
           showError(`Failed to update tasks: ${error.message}`);
         } finally {
           submitBtn.textContent = 'Update Tasks';
           submitBtn.disabled = false;
+        }
+      });
+      
+      // Submit form to view task status
+      viewForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const apiKey = apiKeyInput.value.trim();
+        const taskIdsText = viewTaskIdsInput.value.trim();
+        
+        if (!apiKey) {
+          showError('API Key is required');
+          return;
+        }
+        
+        if (!taskIdsText) {
+          showError('At least one Task ID is required');
+          return;
+        }
+        
+        // Parse task IDs
+        const taskIds = taskIdsText.split(/[\n,]+/).map(id => id.trim()).filter(id => id);
+        
+        try {
+          viewBtn.textContent = 'Fetching...';
+          viewBtn.disabled = true;
+          hideError();
+          
+          // Define headers for API call
+          const headers = {
+            'Content-Type': 'application/json'
+          };
+          
+          // Format API key correctly
+          if (apiKey.trim().toLowerCase().startsWith('pk_')) {
+            headers['Authorization'] = apiKey.trim();
+          } else {
+            headers['Authorization'] = 'Bearer ' + apiKey.trim();
+          }
+          
+          const response = await fetch('/api/getTasks', {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify({ taskIds })
+          });
+          
+          if (!response.ok) {
+            throw new Error(`HTTP error ${response.status}`);
+          }
+          
+          const data = await response.json();
+          
+          // Display results
+          viewResultsTable.innerHTML = '';
+          data.results.forEach(task => {
+            const row = document.createElement('tr');
+            row.className = task.success ? '' : 'bg-red-50';
+            
+            // Task ID column
+            const idCell = document.createElement('td');
+            idCell.className = 'py-2 px-3';
+            
+            // For successful tasks, add clickable link to ClickUp task
+            if (task.success && task.url) {
+              const link = document.createElement('a');
+              link.href = task.url;
+              link.target = '_blank';
+              link.className = 'text-blue-600 hover:underline';
+              link.textContent = task.taskId;
+              idCell.appendChild(link);
+            } else {
+              idCell.textContent = task.taskId;
+            }
+            
+            // Task name column
+            const nameCell = document.createElement('td');
+            nameCell.className = 'py-2 px-3';
+            nameCell.textContent = task.success ? (task.name || 'N/A') : 'Error';
+            
+            // Status column
+            const statusCell = document.createElement('td');
+            statusCell.className = 'py-2 px-3';
+            
+            if (task.success && task.status) {
+              const statusBadge = document.createElement('span');
+              statusBadge.className = 'inline-block px-2 py-1 rounded text-xs text-white';
+              statusBadge.textContent = task.status.status;
+              
+              // Set background color if available, otherwise use a default
+              if (task.status.color) {
+                statusBadge.style.backgroundColor = task.status.color;
+              } else {
+                statusBadge.className += ' bg-gray-500';
+              }
+              
+              statusCell.appendChild(statusBadge);
+            } else {
+              statusCell.textContent = task.message || 'Failed to fetch status';
+            }
+            
+            // List column
+            const listCell = document.createElement('td');
+            listCell.className = 'py-2 px-3';
+            if (task.success && task.list) {
+              listCell.textContent = task.list.name || 'N/A';
+            } else {
+              listCell.textContent = 'N/A';
+            }
+            
+            // Actions column
+            const actionsCell = document.createElement('td');
+            actionsCell.className = 'py-2 px-3';
+            
+            if (task.success) {
+              // Create copy button
+              const copyBtn = document.createElement('button');
+              copyBtn.className = 'text-sm bg-gray-200 px-2 py-1 rounded hover:bg-gray-300 mr-2';
+              copyBtn.textContent = 'Copy ID';
+              copyBtn.onclick = function() {
+                navigator.clipboard.writeText(task.taskId).then(() => {
+                  copyBtn.textContent = 'Copied!';
+                  setTimeout(() => { copyBtn.textContent = 'Copy ID'; }, 2000);
+                });
+              };
+              
+              actionsCell.appendChild(copyBtn);
+            }
+            
+            // Add all cells to the row
+            row.appendChild(idCell);
+            row.appendChild(nameCell);
+            row.appendChild(statusCell);
+            row.appendChild(listCell);
+            row.appendChild(actionsCell);
+            
+            viewResultsTable.appendChild(row);
+          });
+          
+          viewResultsContainer.classList.remove('hidden');
+        } catch (error) {
+          showError(`Failed to fetch task status: ${error.message}`);
+        } finally {
+          viewBtn.textContent = 'Get Task Status';
+          viewBtn.disabled = false;
         }
       });
 
