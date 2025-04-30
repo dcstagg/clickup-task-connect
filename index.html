@@ -510,12 +510,14 @@
           
           if (!response.ok) {
             let errorMessage;
+            // Clone the response before reading it
+            const responseClone = response.clone();
             try {
               const errorData = await response.json();
               errorMessage = errorData.message || `HTTP error ${response.status}`;
             } catch (e) {
-              // If response is not JSON, try to get the text
-              const text = await response.text();
+              // If response is not JSON, try to get the text from the clone
+              const text = await responseClone.text();
               errorMessage = `Server error: ${text.substring(0, 100)}...`;
             }
             throw new Error(errorMessage);
