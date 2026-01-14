@@ -47,7 +47,7 @@ module.exports = async (req, res) => {
   try {
     console.log(`Fetching tasks from list ${listId}, page ${page}, closedOnly: ${closedOnly}`);
 
-    // Build query params
+    // Build query params - always fetch all tasks including closed
     const params = {
       page: page,
       subtasks: false,
@@ -55,11 +55,6 @@ module.exports = async (req, res) => {
       order_by: 'created',
       reverse: false // Oldest first
     };
-
-    // If closedOnly, filter by closed statuses
-    if (closedOnly) {
-      params.statuses = ['closed', 'Closed', 'complete', 'Complete', 'done', 'Done'];
-    }
 
     const response = await axios({
       method: 'GET',
@@ -72,7 +67,14 @@ module.exports = async (req, res) => {
       timeout: 30000 // 30 second timeout for large lists
     });
 
-    const allTasks = response.data.tasks || [];
+    let allTasks = response.data.tasks || [];
+
+    // If closedOnly, filter to tasks that have a date_closed (actually closed/completed)
+    // This is more reliable than filtering by status name
+    if (closedOnly) {
+      allTasks = allTasks.filter(task => task.date_closed !== null);
+      console.log(`Filtered to ${allTasks.length} closed tasks`);
+    }
 
     // Apply limit (ClickUp returns up to 100 per page by default)
     const tasks = allTasks.slice(0, limit);
