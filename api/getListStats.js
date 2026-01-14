@@ -58,20 +58,28 @@ module.exports = async (req, res) => {
   }
 
   try {
-    // Fetch list info and task count from ClickUp in parallel
-    const [listResponse, tasksResponse, archivedCount] = await Promise.all([
-      // Get list details
-      axios({
-        method: 'GET',
-        url: `https://api.clickup.com/api/v2/list/${listId}`,
-        headers: {
-          'Authorization': apiKey,
-          'Content-Type': 'application/json'
-        },
-        timeout: 8000
-      }),
-      // Get tasks to count them (using minimal fields)
-      axios({
+    // Fetch list info from ClickUp
+    const listResponse = await axios({
+      method: 'GET',
+      url: `https://api.clickup.com/api/v2/list/${listId}`,
+      headers: {
+        'Authorization': apiKey,
+        'Content-Type': 'application/json'
+      },
+      timeout: 8000
+    });
+
+    const listName = listResponse.data.name || 'Unknown List';
+
+    // Count ALL tasks by paginating through entire list
+    let taskCount = 0;
+    let page = 0;
+    let hasMore = true;
+
+    console.log(`Counting all tasks in list ${listId}...`);
+
+    while (hasMore) {
+      const tasksResponse = await axios({
         method: 'GET',
         url: `https://api.clickup.com/api/v2/list/${listId}/task`,
         headers: {
@@ -79,28 +87,41 @@ module.exports = async (req, res) => {
           'Content-Type': 'application/json'
         },
         params: {
-          page: 0,
+          page: page,
           subtasks: false,
-          include_closed: true
+          include_closed: true  // Include completed/closed tasks
         },
-        timeout: 15000
-      }),
-      // Get archived count from MongoDB
-      (async () => {
-        try {
-          const client = await connectToMongo();
-          const db = client.db('nutiliti');
-          const collection = db.collection('clickup_archived_tasks');
-          return await collection.countDocuments({ listId: listId });
-        } catch (mongoError) {
-          console.error('MongoDB error:', mongoError.message);
-          return 0; // Return 0 if MongoDB fails
-        }
-      })()
-    ]);
+        timeout: 30000
+      });
 
-    const listName = listResponse.data.name || 'Unknown List';
-    const taskCount = tasksResponse.data.tasks?.length || 0;
+      const tasks = tasksResponse.data.tasks || [];
+      taskCount += tasks.length;
+
+      console.log(`Page ${page + 1}: found ${tasks.length} tasks (total: ${taskCount})`);
+
+      // ClickUp returns up to 100 tasks per page
+      // If we get fewer than 100, we've reached the end
+      if (tasks.length < 100) {
+        hasMore = false;
+      } else {
+        page++;
+        // Small delay to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+    }
+
+    // Get archived count from MongoDB
+    let archivedCount = 0;
+    try {
+      const client = await connectToMongo();
+      const db = client.db('nutiliti');
+      const collection = db.collection('clickup_archived_tasks');
+      archivedCount = await collection.countDocuments({ listId: listId });
+    } catch (mongoError) {
+      console.error('MongoDB error:', mongoError.message);
+    }
+
+    console.log(`Final count: ${taskCount} tasks in ClickUp, ${archivedCount} archived`);
 
     return res.status(200).json({
       success: true,
