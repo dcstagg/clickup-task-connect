@@ -8,7 +8,8 @@
     "deploy": "vercel deploy --prod"
   },
   "dependencies": {
-    "axios": "^1.6.2"
+    "axios": "^1.6.2",
+    "mongodb": "^6.21.0"
   },
   "devDependencies": {
     "vercel": "^30.2.2"

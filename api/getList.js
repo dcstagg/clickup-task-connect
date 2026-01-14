@@ -26,29 +26,25 @@ module.exports = async (req, res) => {
     }
 
     const { listId } = req.query;
-    const apiKey = req.headers.authorization;
-    
+    const apiKey = process.env.CLICKUP_API_KEY;
+
     console.log(`Received request for list ID: ${listId}`);
-    console.log(`Authorization header present: ${!!apiKey}`);
-    
+
     if (!apiKey) {
-      return res.status(400).json({ error: 'API key is required in Authorization header' });
+      return res.status(500).json({ error: 'CLICKUP_API_KEY environment variable is not configured' });
     }
-    
+
     if (!listId) {
       return res.status(400).json({ error: 'List ID is required' });
     }
-    
+
     console.log(`Making request to ClickUp API for list: ${listId}`);
-    
-    // Create a clean API key (in case it has "Bearer " prefix)
-    const cleanApiKey = apiKey.replace(/^Bearer\s+/i, '');
     
     const response = await axios({
       method: 'GET',
       url: `https://api.clickup.com/api/v2/list/${listId}`,
       headers: {
-        'Authorization': cleanApiKey,
+        'Authorization': apiKey,
         'Content-Type': 'application/json'
       },
       timeout: 8000 // 8 second timeout

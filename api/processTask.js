@@ -25,24 +25,28 @@ module.exports = async (req, res) => {
   }
 
   const { taskId, status } = req.body;
-  const apiKey = req.headers.authorization;
-  
-  if (!apiKey || !taskId || !status) {
-    return res.status(400).json({ 
-      error: 'Missing required parameters', 
-      message: 'API key, taskId, and status are required' 
+  const apiKey = process.env.CLICKUP_API_KEY;
+
+  if (!apiKey) {
+    return res.status(500).json({
+      error: 'Configuration error',
+      message: 'CLICKUP_API_KEY environment variable is not configured'
     });
   }
-  
-  // Clean API key
-  const cleanApiKey = apiKey.replace(/^Bearer\s+/i, '');
+
+  if (!taskId || !status) {
+    return res.status(400).json({
+      error: 'Missing required parameters',
+      message: 'taskId and status are required'
+    });
+  }
   
   try {
     const response = await axios({
       method: 'PUT',
       url: `https://api.clickup.com/api/v2/task/${taskId}`,
       headers: {
-        'Authorization': cleanApiKey,
+        'Authorization': apiKey,
         'Content-Type': 'application/json'
       },
       data: { status },

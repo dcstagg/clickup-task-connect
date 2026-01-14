@@ -9,6 +9,9 @@
     { "src": "/api/updateTasks", "dest": "/api/updateTasks.js" },
     { "src": "/api/processTask", "dest": "/api/processTask.js" },
     { "src": "/api/getTasks", "dest": "/api/getTasks.js" },
+    { "src": "/api/getListStats", "dest": "/api/getListStats.js" },
+    { "src": "/api/fetchListTasks", "dest": "/api/fetchListTasks.js" },
+    { "src": "/api/archiveBatch", "dest": "/api/archiveBatch.js" },
     { "src": "/api/clickup", "status": 404, "dest": "/api/getList.js" },
     { "src": "/(.*)", "dest": "/index.html" }
   ]

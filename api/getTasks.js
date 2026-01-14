@@ -25,17 +25,21 @@ module.exports = async (req, res) => {
   }
 
   const { taskIds } = req.body;
-  const apiKey = req.headers.authorization;
-  
-  if (!apiKey || !taskIds || !Array.isArray(taskIds) || taskIds.length === 0) {
-    return res.status(400).json({ 
-      error: 'Missing required parameters', 
-      message: 'API key and taskIds array are required' 
+  const apiKey = process.env.CLICKUP_API_KEY;
+
+  if (!apiKey) {
+    return res.status(500).json({
+      error: 'Configuration error',
+      message: 'CLICKUP_API_KEY environment variable is not configured'
     });
   }
-  
-  // Clean API key
-  const cleanApiKey = apiKey.replace(/^Bearer\s+/i, '');
+
+  if (!taskIds || !Array.isArray(taskIds) || taskIds.length === 0) {
+    return res.status(400).json({
+      error: 'Missing required parameters',
+      message: 'taskIds array is required'
+    });
+  }
   
   const results = [];
   const BATCH_SIZE = 2; // Reduced batch size to avoid timeouts
@@ -52,7 +56,7 @@ module.exports = async (req, res) => {
             method: 'GET',
             url: `https://api.clickup.com/api/v2/task/${taskId}`,
             headers: {
-              'Authorization': cleanApiKey,
+              'Authorization': apiKey,
               'Content-Type': 'application/json'
             },
             timeout: 8000 // 8 second timeout per request
