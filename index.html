@@ -769,7 +769,10 @@
           const data = await response.json();
 
           // Update stats display
-          statTaskCount.textContent = data.taskCount.toLocaleString();
+          const countDisplay = data.isPartialCount
+            ? `${data.taskCount.toLocaleString()}+`
+            : data.taskCount.toLocaleString();
+          statTaskCount.textContent = countDisplay;
           statArchivedCount.textContent = data.archivedCount.toLocaleString();
           statListName.textContent = data.listName;
           statsDisplay.classList.remove('hidden');
@@ -779,7 +782,8 @@
             archiveListIdInput.value = data.defaultListId;
           }
 
-          showError(`Stats loaded for "${data.listName}"`, 'bg-green-100 text-green-700');
+          const partialNote = data.isPartialCount ? ' (count is partial due to list size)' : '';
+          showError(`Stats loaded for "${data.listName}"${partialNote}`, 'bg-green-100 text-green-700');
 
         } catch (error) {
           showError(`Failed to fetch stats: ${error.message}`);

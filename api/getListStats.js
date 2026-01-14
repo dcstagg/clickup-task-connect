@@ -58,6 +58,10 @@ module.exports = async (req, res) => {
   }
 
   try {
+    // Set a timeout to ensure we return before Vercel kills us
+    const START_TIME = Date.now();
+    const MAX_DURATION_MS = 8000; // Leave 2s buffer before Vercel's 10s limit
+
     // Fetch list info from ClickUp
     const listResponse = await axios({
       method: 'GET',
@@ -71,16 +75,23 @@ module.exports = async (req, res) => {
 
     const listName = listResponse.data.name || 'Unknown List';
 
-    // Count ALL tasks by fetching pages in parallel batches
-    // This is much faster than sequential fetching
+    // Count tasks with a time limit - return partial count if we run out of time
     let taskCount = 0;
     let pageGroup = 0;
     let hasMore = true;
-    const PARALLEL_PAGES = 5; // Fetch 5 pages at once
+    let isPartialCount = false;
+    const PARALLEL_PAGES = 10; // Fetch 10 pages at once (1000 tasks)
 
     console.log(`Counting all tasks in list ${listId}...`);
 
     while (hasMore) {
+      // Check if we're running out of time
+      if (Date.now() - START_TIME > MAX_DURATION_MS) {
+        console.log('Time limit reached, returning partial count');
+        isPartialCount = true;
+        break;
+      }
+
       // Create array of page numbers to fetch in parallel
       const pageNumbers = [];
       for (let i = 0; i < PARALLEL_PAGES; i++) {
@@ -101,7 +112,7 @@ module.exports = async (req, res) => {
             subtasks: false,
             include_closed: true
           },
-          timeout: 8000
+          timeout: 5000
         }).catch(err => {
           console.error(`Page ${page} error:`, err.message);
           return { data: { tasks: [] } };
@@ -143,13 +154,14 @@ module.exports = async (req, res) => {
       console.error('MongoDB error:', mongoError.message);
     }
 
-    console.log(`Final count: ${taskCount} tasks in ClickUp, ${archivedCount} archived`);
+    console.log(`Final count: ${taskCount} tasks in ClickUp, ${archivedCount} archived, partial: ${isPartialCount}`);
 
     return res.status(200).json({
       success: true,
       listId,
       listName,
       taskCount,
+      isPartialCount, // true if we hit time limit
       archivedCount,
       defaultListId: defaultListId || null
     });
