@@ -66,47 +66,69 @@ module.exports = async (req, res) => {
         'Authorization': apiKey,
         'Content-Type': 'application/json'
       },
-      timeout: 8000
+      timeout: 5000
     });
 
     const listName = listResponse.data.name || 'Unknown List';
 
-    // Count ALL tasks by paginating through entire list
+    // Count ALL tasks by fetching pages in parallel batches
+    // This is much faster than sequential fetching
     let taskCount = 0;
-    let page = 0;
+    let pageGroup = 0;
     let hasMore = true;
+    const PARALLEL_PAGES = 5; // Fetch 5 pages at once
 
     console.log(`Counting all tasks in list ${listId}...`);
 
     while (hasMore) {
-      const tasksResponse = await axios({
-        method: 'GET',
-        url: `https://api.clickup.com/api/v2/list/${listId}/task`,
-        headers: {
-          'Authorization': apiKey,
-          'Content-Type': 'application/json'
-        },
-        params: {
-          page: page,
-          subtasks: false,
-          include_closed: true  // Include completed/closed tasks
-        },
-        timeout: 30000
-      });
+      // Create array of page numbers to fetch in parallel
+      const pageNumbers = [];
+      for (let i = 0; i < PARALLEL_PAGES; i++) {
+        pageNumbers.push(pageGroup * PARALLEL_PAGES + i);
+      }
 
-      const tasks = tasksResponse.data.tasks || [];
-      taskCount += tasks.length;
+      // Fetch multiple pages in parallel
+      const pagePromises = pageNumbers.map(page =>
+        axios({
+          method: 'GET',
+          url: `https://api.clickup.com/api/v2/list/${listId}/task`,
+          headers: {
+            'Authorization': apiKey,
+            'Content-Type': 'application/json'
+          },
+          params: {
+            page: page,
+            subtasks: false,
+            include_closed: true
+          },
+          timeout: 8000
+        }).catch(err => {
+          console.error(`Page ${page} error:`, err.message);
+          return { data: { tasks: [] } };
+        })
+      );
 
-      console.log(`Page ${page + 1}: found ${tasks.length} tasks (total: ${taskCount})`);
+      const results = await Promise.all(pagePromises);
 
-      // ClickUp returns up to 100 tasks per page
-      // If we get fewer than 100, we've reached the end
-      if (tasks.length < 100) {
+      let groupCount = 0;
+      let foundEmptyPage = false;
+
+      for (let i = 0; i < results.length; i++) {
+        const tasks = results[i].data.tasks || [];
+        groupCount += tasks.length;
+
+        if (tasks.length < 100) {
+          foundEmptyPage = true;
+        }
+      }
+
+      taskCount += groupCount;
+      console.log(`Pages ${pageGroup * PARALLEL_PAGES + 1}-${(pageGroup + 1) * PARALLEL_PAGES}: found ${groupCount} tasks (total: ${taskCount})`);
+
+      if (foundEmptyPage || groupCount === 0) {
         hasMore = false;
       } else {
-        page++;
-        // Small delay to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 200));
+        pageGroup++;
       }
     }
 
