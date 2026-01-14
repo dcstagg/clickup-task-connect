@@ -1,4 +1,5 @@
 // api/getListStats.js - Get list statistics and archive count
+// Auto-deployed via GitHub integration
 const axios = require('axios');
 const { MongoClient } = require('mongodb');
 
