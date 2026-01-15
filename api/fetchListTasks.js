@@ -47,44 +47,95 @@ module.exports = async (req, res) => {
   try {
     console.log(`Fetching tasks from list ${listId}, page ${page}, closedOnly: ${closedOnly}`);
 
-    // Build query params - always fetch all tasks including closed
-    const params = {
-      page: page,
-      subtasks: false,
-      include_closed: true,
-      order_by: 'created',
-      reverse: false // Oldest first
-    };
+    let allTasks = [];
 
-    const response = await axios({
-      method: 'GET',
-      url: `https://api.clickup.com/api/v2/list/${listId}/task`,
-      headers: {
-        'Authorization': apiKey,
-        'Content-Type': 'application/json'
-      },
-      params,
-      timeout: 30000 // 30 second timeout for large lists
-    });
-
-    let allTasks = response.data.tasks || [];
-
-    // If closedOnly, filter to tasks that have a date_closed (actually closed/completed)
-    // This is more reliable than filtering by status name
     if (closedOnly) {
-      allTasks = allTasks.filter(task => task.date_closed !== null);
+      // For closed tasks, we need to fetch multiple pages to find the truly oldest
+      // Then sort all of them by date_closed
+      const MAX_PAGES = 20; // Fetch up to 2000 tasks to find oldest closed
+      const START_TIME = Date.now();
+      const MAX_DURATION_MS = 25000; // Leave buffer before Vercel timeout
 
-      // Sort by date_closed ascending (oldest closed first)
+      console.log(`Fetching up to ${MAX_PAGES} pages to find oldest closed tasks...`);
+
+      for (let p = 0; p < MAX_PAGES; p++) {
+        // Check time limit
+        if (Date.now() - START_TIME > MAX_DURATION_MS) {
+          console.log(`Time limit reached at page ${p}`);
+          break;
+        }
+
+        const response = await axios({
+          method: 'GET',
+          url: `https://api.clickup.com/api/v2/list/${listId}/task`,
+          headers: {
+            'Authorization': apiKey,
+            'Content-Type': 'application/json'
+          },
+          params: {
+            page: p,
+            subtasks: false,
+            include_closed: true
+          },
+          timeout: 8000
+        });
+
+        const pageTasks = response.data.tasks || [];
+        if (pageTasks.length === 0) {
+          console.log(`No more tasks at page ${p}`);
+          break;
+        }
+
+        // Filter to closed tasks only
+        const closedTasks = pageTasks.filter(task => task.date_closed !== null);
+        allTasks.push(...closedTasks);
+
+        console.log(`Page ${p + 1}: ${pageTasks.length} tasks, ${closedTasks.length} closed (total closed: ${allTasks.length})`);
+
+        // If we have enough closed tasks, stop fetching
+        if (allTasks.length >= limit * 2) {
+          console.log(`Found enough closed tasks, stopping fetch`);
+          break;
+        }
+
+        // If page wasn't full, we've reached the end
+        if (pageTasks.length < 100) {
+          break;
+        }
+      }
+
+      // Sort ALL collected closed tasks by date_closed ascending (oldest first)
       allTasks.sort((a, b) => {
         const dateA = parseInt(a.date_closed) || 0;
         const dateB = parseInt(b.date_closed) || 0;
         return dateA - dateB;
       });
 
-      console.log(`Filtered to ${allTasks.length} closed tasks, sorted by oldest closed first`);
+      console.log(`Total ${allTasks.length} closed tasks, sorted by oldest closed first`);
+
+    } else {
+      // For all tasks, just fetch the requested page
+      const response = await axios({
+        method: 'GET',
+        url: `https://api.clickup.com/api/v2/list/${listId}/task`,
+        headers: {
+          'Authorization': apiKey,
+          'Content-Type': 'application/json'
+        },
+        params: {
+          page: page,
+          subtasks: false,
+          include_closed: true,
+          order_by: 'created',
+          reverse: false // Oldest first
+        },
+        timeout: 30000
+      });
+
+      allTasks = response.data.tasks || [];
     }
 
-    // Apply limit (ClickUp returns up to 100 per page by default)
+    // Apply limit
     const tasks = allTasks.slice(0, limit);
 
     // Map to the data we need for archiving
@@ -123,7 +174,8 @@ module.exports = async (req, res) => {
       listId,
       page,
       taskCount: mappedTasks.length,
-      hasMore: allTasks.length >= 100, // ClickUp returns max 100, so if we got 100 there might be more
+      totalFound: allTasks.length, // Total tasks found before limiting
+      hasMore: allTasks.length > limit, // More tasks available than we're returning
       tasks: mappedTasks
     });
 
