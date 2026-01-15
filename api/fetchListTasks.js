@@ -84,13 +84,15 @@ module.exports = async (req, res) => {
     } else if (closedOnly) {
       // For closed tasks, fetch multiple pages IN PARALLEL to find oldest
       // Then sort all of them by date_closed
-      const PARALLEL_PAGES = 10; // Fetch 10 pages at once (1000 tasks)
+      // Use 'page' parameter as batch number - each batch fetches 20 pages
+      const PAGES_PER_BATCH = 20;
+      const startPage = page * PAGES_PER_BATCH;
 
-      console.log(`Fetching ${PARALLEL_PAGES} pages in parallel to find oldest closed tasks...`);
+      console.log(`Fetching pages ${startPage}-${startPage + PAGES_PER_BATCH - 1} in parallel for closed tasks...`);
 
       // Create array of page fetches
       const pagePromises = [];
-      for (let p = 0; p < PARALLEL_PAGES; p++) {
+      for (let p = startPage; p < startPage + PAGES_PER_BATCH; p++) {
         pagePromises.push(
           axios({
             method: 'GET',
@@ -116,12 +118,15 @@ module.exports = async (req, res) => {
       const results = await Promise.all(pagePromises);
 
       // Collect all closed tasks from all pages
+      let totalTasksInBatch = 0;
       for (let i = 0; i < results.length; i++) {
         const pageTasks = results[i].data.tasks || [];
+        totalTasksInBatch += pageTasks.length;
         const closedTasks = pageTasks.filter(task => task.date_closed !== null);
         allTasks.push(...closedTasks);
-        console.log(`Page ${i + 1}: ${pageTasks.length} tasks, ${closedTasks.length} closed`);
       }
+
+      console.log(`Batch ${page}: scanned ${totalTasksInBatch} tasks, found ${allTasks.length} closed`);
 
       // Sort ALL collected closed tasks by date_closed ascending (oldest first)
       allTasks.sort((a, b) => {
@@ -130,7 +135,7 @@ module.exports = async (req, res) => {
         return dateA - dateB;
       });
 
-      console.log(`Total ${allTasks.length} closed tasks, sorted by oldest closed first`);
+      console.log(`Returning ${Math.min(allTasks.length, limit)} oldest closed tasks`);
 
     } else {
       // For all tasks, just fetch the requested page
