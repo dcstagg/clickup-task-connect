@@ -52,23 +52,34 @@ module.exports = async (req, res) => {
 
     // If viewId is provided, fetch from the view (already sorted/filtered by ClickUp)
     if (viewId) {
-      console.log(`Fetching from view ${viewId}...`);
+      console.log(`Fetching from view ${viewId}, page ${page}...`);
 
-      const response = await axios({
-        method: 'GET',
-        url: `https://api.clickup.com/api/v2/view/${viewId}/task`,
-        headers: {
-          'Authorization': apiKey,
-          'Content-Type': 'application/json'
-        },
-        params: {
-          page: page
-        },
-        timeout: 15000
-      });
+      try {
+        const response = await axios({
+          method: 'GET',
+          url: `https://api.clickup.com/api/v2/view/${viewId}/task`,
+          headers: {
+            'Authorization': apiKey,
+            'Content-Type': 'application/json'
+          },
+          params: {
+            page: page
+          },
+          timeout: 8000 // Shorter timeout to avoid Vercel 504
+        });
 
-      allTasks = response.data.tasks || [];
-      console.log(`Fetched ${allTasks.length} tasks from view`);
+        allTasks = response.data.tasks || [];
+        console.log(`Fetched ${allTasks.length} tasks from view`);
+      } catch (viewError) {
+        console.error('View fetch error:', viewError.message);
+        if (viewError.code === 'ECONNABORTED') {
+          return res.status(504).json({
+            error: 'View fetch timeout',
+            message: 'The ClickUp view is too large or slow. Try a smaller view or use List ID with "closed only" option.'
+          });
+        }
+        throw viewError;
+      }
 
     } else if (closedOnly) {
       // For closed tasks, fetch multiple pages IN PARALLEL to find oldest
