@@ -51,35 +51,49 @@ module.exports = async (req, res) => {
     let allTasks = [];
 
     // If viewId is provided, fetch from the view (already sorted/filtered by ClickUp)
+    // Use parallel fetching just like closedOnly mode
     if (viewId) {
-      console.log(`Fetching from view ${viewId}, page ${page}...`);
+      const PAGES_PER_BATCH = 20;
+      const startPage = page * PAGES_PER_BATCH;
 
-      try {
-        const response = await axios({
-          method: 'GET',
-          url: `https://api.clickup.com/api/v2/view/${viewId}/task`,
-          headers: {
-            'Authorization': apiKey,
-            'Content-Type': 'application/json'
-          },
-          params: {
-            page: page
-          },
-          timeout: 8000 // Shorter timeout to avoid Vercel 504
-        });
+      console.log(`Fetching view ${viewId}, pages ${startPage}-${startPage + PAGES_PER_BATCH - 1} in parallel...`);
 
-        allTasks = response.data.tasks || [];
-        console.log(`Fetched ${allTasks.length} tasks from view`);
-      } catch (viewError) {
-        console.error('View fetch error:', viewError.message);
-        if (viewError.code === 'ECONNABORTED') {
-          return res.status(504).json({
-            error: 'View fetch timeout',
-            message: 'The ClickUp view is too large or slow. Try a smaller view or use List ID with "closed only" option.'
-          });
-        }
-        throw viewError;
+      // Create array of page fetches for the view
+      const pagePromises = [];
+      for (let p = startPage; p < startPage + PAGES_PER_BATCH; p++) {
+        pagePromises.push(
+          axios({
+            method: 'GET',
+            url: `https://api.clickup.com/api/v2/view/${viewId}/task`,
+            headers: {
+              'Authorization': apiKey,
+              'Content-Type': 'application/json'
+            },
+            params: {
+              page: p
+            },
+            timeout: 8000
+          }).catch(err => {
+            console.error(`View page ${p} error:`, err.message);
+            return { data: { tasks: [] } };
+          })
+        );
       }
+
+      // Fetch all pages in parallel
+      const results = await Promise.all(pagePromises);
+
+      // Collect all tasks from all pages (already sorted by ClickUp)
+      let totalTasksInBatch = 0;
+      for (let i = 0; i < results.length; i++) {
+        const pageTasks = results[i].data.tasks || [];
+        totalTasksInBatch += pageTasks.length;
+        allTasks.push(...pageTasks);
+      }
+
+      console.log(`View batch ${page}: fetched ${totalTasksInBatch} tasks total, ${allTasks.length} collected`);
+
+      // No need to sort - View is already sorted by ClickUp
 
     } else if (closedOnly) {
       // For closed tasks, fetch multiple pages IN PARALLEL to find oldest
