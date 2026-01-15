@@ -256,6 +256,20 @@
             />
           </label>
         </div>
+        <div>
+          <label class="block mb-1 font-medium">
+            View ID (optional - for pre-sorted views):
+            <input
+              type="text"
+              id="archiveViewId"
+              class="w-full p-2 mt-1 border rounded"
+              placeholder="e.g., abc-123 (leave empty to use list)"
+            />
+          </label>
+          <p class="text-xs text-gray-500 mt-1">
+            Create a view in ClickUp sorted by oldest closed date, then paste its ID here for faster/more accurate results.
+          </p>
+        </div>
         <div class="flex items-center">
           <input
             type="checkbox"
@@ -263,7 +277,7 @@
             class="mr-2 h-4 w-4"
           />
           <label for="closedOnlyCheckbox" class="font-medium">
-            Archive closed/completed tasks only
+            Archive closed/completed tasks only (ignored if View ID is set)
           </label>
         </div>
         <button
@@ -708,6 +722,7 @@
       // Archive Tasks Tab
       // =====================
       const archiveListIdInput = document.getElementById('archiveListId');
+      const archiveViewIdInput = document.getElementById('archiveViewId');
       const checkStatsBtn = document.getElementById('checkStatsBtn');
       const statsDisplay = document.getElementById('statsDisplay');
       const statTaskCount = document.getElementById('statTaskCount');
@@ -796,16 +811,18 @@
       // Start Archive button
       startArchiveBtn.addEventListener('click', async function() {
         const listId = archiveListIdInput.value.trim();
+        const viewId = archiveViewIdInput.value.trim();
         const archiveCount = parseInt(archiveCountInput.value) || 5000;
         const closedOnly = closedOnlyCheckbox.checked;
 
-        if (!listId) {
-          showError('Please enter a List ID or click "Check Stats" to load the default');
+        if (!listId && !viewId) {
+          showError('Please enter a List ID or View ID');
           return;
         }
 
         // Confirm action
-        if (!confirm(`Are you sure you want to archive up to ${archiveCount.toLocaleString()} tasks from this list? This will DELETE them from ClickUp after saving to the archive.`)) {
+        const sourceDesc = viewId ? `view ${viewId}` : `list ${listId}`;
+        if (!confirm(`Are you sure you want to archive up to ${archiveCount.toLocaleString()} tasks from this ${viewId ? 'view' : 'list'}? This will DELETE them from ClickUp after saving to the archive.`)) {
           return;
         }
 
@@ -828,15 +845,25 @@
           const BATCH_SIZE = 5; // Tasks per archive batch
           const FETCH_LIMIT = 100; // Tasks per fetch page
 
-          addLogEntry(`Starting archive process for list ${listId}`, 'info');
-          addLogEntry(`Target: ${archiveCount} tasks, Closed only: ${closedOnly}`, 'info');
+          addLogEntry(`Starting archive process for ${sourceDesc}`, 'info');
+          if (viewId) {
+            addLogEntry(`Using View ID: ${viewId} (pre-sorted by ClickUp)`, 'info');
+          } else {
+            addLogEntry(`Target: ${archiveCount} tasks, Closed only: ${closedOnly}`, 'info');
+          }
 
           // Fetch and process tasks in pages
           while (fetched < archiveCount) {
             // Fetch a page of tasks
             addLogEntry(`Fetching page ${page + 1}...`, 'info');
 
-            const fetchUrl = `/api/fetchListTasks?listId=${encodeURIComponent(listId)}&page=${page}&limit=${FETCH_LIMIT}&closedOnly=${closedOnly}`;
+            // Build fetch URL - use viewId if provided, otherwise use listId
+            let fetchUrl;
+            if (viewId) {
+              fetchUrl = `/api/fetchListTasks?viewId=${encodeURIComponent(viewId)}&page=${page}&limit=${FETCH_LIMIT}`;
+            } else {
+              fetchUrl = `/api/fetchListTasks?listId=${encodeURIComponent(listId)}&page=${page}&limit=${FETCH_LIMIT}&closedOnly=${closedOnly}`;
+            }
             const fetchResponse = await fetch(fetchUrl, {
               method: 'GET',
               headers: { 'Content-Type': 'application/json' }

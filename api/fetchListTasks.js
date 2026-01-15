@@ -26,6 +26,7 @@ module.exports = async (req, res) => {
 
   const apiKey = process.env.CLICKUP_API_KEY;
   const listId = req.query.listId;
+  const viewId = req.query.viewId; // Optional: fetch from a specific view
   const page = parseInt(req.query.page) || 0;
   const limit = Math.min(parseInt(req.query.limit) || 100, 100); // Max 100 per page
   const closedOnly = req.query.closedOnly === 'true';
@@ -37,19 +38,39 @@ module.exports = async (req, res) => {
     });
   }
 
-  if (!listId) {
+  if (!listId && !viewId) {
     return res.status(400).json({
       error: 'Missing parameter',
-      message: 'listId query parameter is required'
+      message: 'listId or viewId query parameter is required'
     });
   }
 
   try {
-    console.log(`Fetching tasks from list ${listId}, page ${page}, closedOnly: ${closedOnly}`);
+    console.log(`Fetching tasks - listId: ${listId}, viewId: ${viewId}, page: ${page}, closedOnly: ${closedOnly}`);
 
     let allTasks = [];
 
-    if (closedOnly) {
+    // If viewId is provided, fetch from the view (already sorted/filtered by ClickUp)
+    if (viewId) {
+      console.log(`Fetching from view ${viewId}...`);
+
+      const response = await axios({
+        method: 'GET',
+        url: `https://api.clickup.com/api/v2/view/${viewId}/task`,
+        headers: {
+          'Authorization': apiKey,
+          'Content-Type': 'application/json'
+        },
+        params: {
+          page: page
+        },
+        timeout: 15000
+      });
+
+      allTasks = response.data.tasks || [];
+      console.log(`Fetched ${allTasks.length} tasks from view`);
+
+    } else if (closedOnly) {
       // For closed tasks, fetch multiple pages IN PARALLEL to find oldest
       // Then sort all of them by date_closed
       const PARALLEL_PAGES = 10; // Fetch 10 pages at once (1000 tasks)
