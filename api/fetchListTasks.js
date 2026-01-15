@@ -50,58 +50,45 @@ module.exports = async (req, res) => {
     let allTasks = [];
 
     if (closedOnly) {
-      // For closed tasks, we need to fetch multiple pages to find the truly oldest
+      // For closed tasks, fetch multiple pages IN PARALLEL to find oldest
       // Then sort all of them by date_closed
-      const MAX_PAGES = 20; // Fetch up to 2000 tasks to find oldest closed
-      const START_TIME = Date.now();
-      const MAX_DURATION_MS = 25000; // Leave buffer before Vercel timeout
+      const PARALLEL_PAGES = 10; // Fetch 10 pages at once (1000 tasks)
 
-      console.log(`Fetching up to ${MAX_PAGES} pages to find oldest closed tasks...`);
+      console.log(`Fetching ${PARALLEL_PAGES} pages in parallel to find oldest closed tasks...`);
 
-      for (let p = 0; p < MAX_PAGES; p++) {
-        // Check time limit
-        if (Date.now() - START_TIME > MAX_DURATION_MS) {
-          console.log(`Time limit reached at page ${p}`);
-          break;
-        }
+      // Create array of page fetches
+      const pagePromises = [];
+      for (let p = 0; p < PARALLEL_PAGES; p++) {
+        pagePromises.push(
+          axios({
+            method: 'GET',
+            url: `https://api.clickup.com/api/v2/list/${listId}/task`,
+            headers: {
+              'Authorization': apiKey,
+              'Content-Type': 'application/json'
+            },
+            params: {
+              page: p,
+              subtasks: false,
+              include_closed: true
+            },
+            timeout: 8000
+          }).catch(err => {
+            console.error(`Page ${p} error:`, err.message);
+            return { data: { tasks: [] } };
+          })
+        );
+      }
 
-        const response = await axios({
-          method: 'GET',
-          url: `https://api.clickup.com/api/v2/list/${listId}/task`,
-          headers: {
-            'Authorization': apiKey,
-            'Content-Type': 'application/json'
-          },
-          params: {
-            page: p,
-            subtasks: false,
-            include_closed: true
-          },
-          timeout: 8000
-        });
+      // Fetch all pages in parallel
+      const results = await Promise.all(pagePromises);
 
-        const pageTasks = response.data.tasks || [];
-        if (pageTasks.length === 0) {
-          console.log(`No more tasks at page ${p}`);
-          break;
-        }
-
-        // Filter to closed tasks only
+      // Collect all closed tasks from all pages
+      for (let i = 0; i < results.length; i++) {
+        const pageTasks = results[i].data.tasks || [];
         const closedTasks = pageTasks.filter(task => task.date_closed !== null);
         allTasks.push(...closedTasks);
-
-        console.log(`Page ${p + 1}: ${pageTasks.length} tasks, ${closedTasks.length} closed (total closed: ${allTasks.length})`);
-
-        // If we have enough closed tasks, stop fetching
-        if (allTasks.length >= limit * 2) {
-          console.log(`Found enough closed tasks, stopping fetch`);
-          break;
-        }
-
-        // If page wasn't full, we've reached the end
-        if (pageTasks.length < 100) {
-          break;
-        }
+        console.log(`Page ${i + 1}: ${pageTasks.length} tasks, ${closedTasks.length} closed`);
       }
 
       // Sort ALL collected closed tasks by date_closed ascending (oldest first)
