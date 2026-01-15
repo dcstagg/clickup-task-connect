@@ -95,13 +95,15 @@ module.exports = async (req, res) => {
         // Step 1: Save to MongoDB FIRST (safety net)
         const archiveDoc = {
           ...task,
+          clickupTaskId: task.taskId, // Match existing index field name
           archivedAt: new Date(),
           _originalTaskId: task.taskId
         };
 
         // Use upsert to avoid duplicates if re-running
+        // Query by clickupTaskId to match the existing unique index
         await collection.updateOne(
-          { taskId: task.taskId },
+          { clickupTaskId: task.taskId },
           { $set: archiveDoc },
           { upsert: true }
         );

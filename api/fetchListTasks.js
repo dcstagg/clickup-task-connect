@@ -73,7 +73,15 @@ module.exports = async (req, res) => {
     // This is more reliable than filtering by status name
     if (closedOnly) {
       allTasks = allTasks.filter(task => task.date_closed !== null);
-      console.log(`Filtered to ${allTasks.length} closed tasks`);
+
+      // Sort by date_closed ascending (oldest closed first)
+      allTasks.sort((a, b) => {
+        const dateA = parseInt(a.date_closed) || 0;
+        const dateB = parseInt(b.date_closed) || 0;
+        return dateA - dateB;
+      });
+
+      console.log(`Filtered to ${allTasks.length} closed tasks, sorted by oldest closed first`);
     }
 
     // Apply limit (ClickUp returns up to 100 per page by default)
